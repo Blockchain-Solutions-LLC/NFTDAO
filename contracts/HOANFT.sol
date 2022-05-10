@@ -335,6 +335,7 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
     }
 
 
+
     // allow unit owner to create lease agreement, which will facilitate payments
     function commitToLease(uint256 _unitID, uint8 _startMonth, uint16 _startYear, uint8 _endMonth, uint16 _endYear
         ) external {
