@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-from brownie import Token, HOANFT, accounts, network, config
+from brownie import Token, HOANFT, SimpleToken, accounts, network, config
 import time
 
 
@@ -9,7 +9,23 @@ def main():
     print(network.show_active())
 
     # constructor(uint256 _units, address _royaltiesCollector, string memory _baseURI)
-    hoa =  HOANFT.deploy(100, accounts[0], "", {'from': accounts[0]})
+
+    # deploy simple token
+    st = SimpleToken.deploy("Simple Token", "SIMP", 10**22, {'from': accounts[0]})
+    name = st.name()
+    symbol = st.symbol()
+    ts = st.totalSupply()
+
+    print(f'name, symbol, ts:')
+    print(name, symbol, ts)
+
+    hoa = HOANFT.deploy(100, accounts[0], "", st.address, {'from': accounts[0]})
+    # tx = hoa.setERC20Address(st.address)
+    # tx.wait(1)
+
+    # todo -- make functionality in RelativeTokenHolding, as it is not able to access it directly
+    # todo -- fix issue with tree structure; Linearization of inheritance graph impossible
+    print(f'ERC20 Addy: {hoa.token()}')
 
     for i in range(3):
         seconds = hoa.getTimestampEstimate(i, 2023)

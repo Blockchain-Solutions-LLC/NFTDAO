@@ -15,11 +15,11 @@ import './helpers/ReentrancyGuard.sol';
 import './helpers/ERC2981Collection.sol';
 import './libraries/Strings.sol';
 import './libraries/Address.sol';
+import './RelativeTokenHolding.sol';
 
+contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection, RelativeTokenHolding {
 
-contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
-
-    IERC20 ecosystemTokens;
+    IERC20 ecosystemToken;
     string private baseURI;
     enum PROFILES  { ADMIN, OWNER, TENANT}
 
@@ -60,6 +60,7 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
 
     enum PeriodType { SECOND, MINUTE, HOUR, DAY, WEEK, MONTH, YEAR, CUSTOM}
 
+    // todo -- consider storing IPFS hash here for each contract
     struct LeaseInfo {
         uint8 startMonth; // 0 to 11
         uint16 startYear; // 2022, for example
@@ -71,6 +72,8 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
         PeriodType periodType;
     }
 
+    // todo -- is this going to serve as a template for one lease, or will multiple leases fit into this data
+    // todo -- if the latter, we need to add minTime and check for pockets that are being invalidated
     struct UnitData {
         LeaseInfo[] leases;
         address borrowerAddress;
@@ -79,6 +82,7 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
         uint16 startYear; // 2022, for example -- constraits for when leasese can be created
         uint8 endMonth; // 0 to 11 -- constraits for when leasese can be created
         uint16 endYear; // 2022, for example -- constraits for when leasese can be created
+        uint40 minTime; // seconds for minimum time to be created.
         uint40 paymentPerPeriod; // amount of USD owned per period
         PeriodType periodType;
     }
@@ -89,14 +93,14 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
 
     function getTimeGivenTimestamp(uint256 _timestamp) public returns(uint256 second, uint256 minute, uint256 hour,
         uint256 day, uint256 month, uint256 year){
-        uint256 year = 1970 + _timestamp / (365 days);
+        year = 1970 + _timestamp / (365 days);
         uint256 rem = _timestamp % (_timestamp / (365 days));
         uint256 total_days = rem /365;
-        uint256 second;
-        uint256 minute;
-        uint256 hour;
-        uint256 day;
-        uint256 month;
+        second;
+        minute;
+        hour;
+        day;
+        month;
         // todo -- complete this
     }
 
@@ -148,11 +152,10 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
         // seconds in incomplete year, excluding completed months
         uint256 timestamp = second + minute*60 + hour * 3600 + day*86400; // todo verify timestamp is correct
 
-        // todo -- this could be precalculated (11 numbers)
-        uint16[12] memory days_in_month = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]; //, 365];
+        uint16[12] memory cumulative_days_in_month = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]; //, 365];
 
         // calculated completed months
-        uint256 secondsInFullMonths = days_in_month[month] * 86400; // need to add in leap year if in march
+        uint256 secondsInFullMonths = cumulative_days_in_month[month] * 86400; // need to add in leap year if in march
 //        if (month > 0){
 //            secondsInFullMonths;
 //        }
@@ -237,15 +240,19 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
         }
 
         // todo -- if periodType == month, different logic. Will need start date and end date
+        uint256 periodsPassed;
+        uint256 periodTime;
+        uint256 rentDue;
+
         if (leaseInfo.periodType == PeriodType.MONTH) {
-            uint256 periodsPassed = 30 days; // todo --this is innacurate and needs to be changed
+            periodsPassed = 30 days; // todo --this is innacurate and needs to be changed
+            rentDue = periodsPassed * leaseInfo.paymentPerPeriod;
         }
         else {
-
+            periodTime = getSecondsGivenPeriodType(leaseInfo.periodType);
+            periodsPassed = (block.timestamp - startDateTimestamp ) / periodTime;// - (block.timestamp - startDateTimestamp ) % periodTime; // whole number of periods passed
+            rentDue = periodsPassed * leaseInfo.paymentPerPeriod; // todo -- potentially add tax contractSettings.tax
         }
-        uint256 periodTime = getSecondsGivenPeriodType(leaseInfo.periodType);
-        uint256 periodsPassed = (block.timestamp - startDateTimestamp ) / periodTime;// - (block.timestamp - startDateTimestamp ) % periodTime; // whole number of periods passed
-        uint256 rentDue = periodsPassed * leaseInfo.paymentPerPeriod; // todo -- potentially add tax contractSettings.tax
 
         return leaseInfo.totalRentPaid > rentDue ? 0 : rentDue - leaseInfo.totalRentPaid;
     }
@@ -300,7 +307,7 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
     /////////////////////////////
 
     function setERC20Address(address _addy) external onlyOwner {
-        ecosystemTokens = IERC20(_addy);
+        ecosystemToken = IERC20(_addy);
     }
 
     function setBaseURI(string calldata _baseURI) external onlyOwner {
@@ -317,8 +324,9 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
         @param _royaltiesCollector -- address to receive royalties ( nonbinding )
         @param _baseURI -- Background Image for tokenUri Image
       */
-    constructor(uint256 _units, address _royaltiesCollector, string memory _baseURI)
-            ERC721A("HOA DAO", "HOADAO") Ownable() ERC2981Collection(_royaltiesCollector, 1000) {
+    constructor(uint256 _units, address _royaltiesCollector, string memory _baseURI, address _economyToken)
+            ERC721A("HOA DAO", "HOADAO") Ownable() ERC2981Collection(_royaltiesCollector, 1000)
+            RelativeTokenHolding(_economyToken) {
         baseURI = _baseURI;
 
 //        contractSettings = ContractSettings({
@@ -428,15 +436,31 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
 
     // pays unit owner rent
     function payRent(uint256 _unitID, address lendee) external payable {
+        // receive rent in stablecoin
+        // store amount in a variable for whoever receives rent
+        // lend out USD if over threshold
     }
+
+
+    function cashOut(uint256 _amount) external nonReentrant {
+        // withdraw _amount from lending vault
+        // reduce amount in variable
+        // transfer to msg.sender
+    }
+
 
     // pays HOA (fees?)
     function payHOA(uint256 _unitID, address lendee) external payable {
         // create a step function for payments and a way to see if the payment has been created
+        // receive fee in stablecoin
+        // store amount in a variable for HOA
     }
 
-    // authenticates and pays member of DAO
-    function payMember(address _member) external payable {
+    // authenticates and pays member of DAO -- takes fee?
+    function payMember(address _receiver) external payable nonReentrant {
+        // money in
+        // authenticate receiver
+        // transfer to receiver
     }
 
     // create rental terms
