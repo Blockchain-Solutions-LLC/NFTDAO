@@ -120,18 +120,29 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
      */
     function getTimestampEstimate(uint256 second, uint256 minute, uint256 hour, uint256 day, uint256 month, uint256 year) view public returns (uint256)    {
         require( year > 1969, "invalid year.");
-        // seconds in incomplete year
+
+        // seconds in incomplete year, excluding completed months
         uint256 timestamp = second + minute*60 + hour * 3600 + day*86400; // todo verify timestamp is correct
 
         // todo -- this could be precalculated (11 numbers)
-        uint256 secondsInFullMonths;
-        for(uint256 i=0; i < month;i++){
-            secondsInFullMonths += getSecondsInGivenMonth(i, year);
-        }
+        uint16[12] memory days_in_month = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]; //, 365];
+
+        // calculated completed months
+        uint256 secondsInFullMonths = days_in_month[month] * 86400; // need to add in leap year if in march
+//        if (month > 0){
+//            secondsInFullMonths;
+//        }
+//
+//        for(uint256 i=0; i < month;i++){
+//            secondsInFullMonths += getSecondsInGivenMonth(i, year);
+//        }
 
         // seconds in leap days
-        uint256 leapYears = year > 1971 ? (year - 1968) / 4 : 0;
+        uint256 affective_years = month > 2 ? year : year - 1;
 
+        uint256 leapYears = affective_years > 1971 ? (affective_years - 1968) / 4 : 0; // protect against underflow
+
+        // add in months, years, and leap days
         timestamp += secondsInFullMonths + 31536000 * (year - 1970) + 86400*leapYears;
 
         return timestamp;
