@@ -26,17 +26,37 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
     mapping(uint256 => UnitData) private tokenIdToUnitData; // compressed data for NFT
 
 // Store in metadata
-//    struct Unit {
-//        string  ownerFirstName;
-//        string  ownerLastName;
-//        uint256 rooms;
-//        uint256 squareFeet;
-//        uint256 bathRooms;
-//        uint256 bedRooms;
-//        uint256 ammenities;
-//        uint256 coverPhoto;
-//        uint256 photoAlbum;
-//    }
+// Unit Info
+    //    struct Unit {
+    //        string  ownerFirstName;
+    //        string  ownerLastName;
+    //        uint256 rooms;
+    //        uint256 squareFeet;
+    //        uint256 bathRooms;
+    //        uint256 bedRooms;
+    //        uint256 ammenities;
+    //        uint256 coverPhoto;
+    //        uint256 photoAlbum;
+    //    }
+
+/// Store in metadata
+//Lease Info
+    //Lessee
+    //Start Date
+    //End Date
+    //Term
+    //Full Lease Link
+    //Process of approval
+    //Owner creates agreement
+    //Paper (?)
+    //Blockchain
+    //Prospective tenant onboarded into app
+    //Agreement signed
+    //Authorized by HOA (?) or Owner
+    // Month, Day, Year --> stored on chain
+    // payment frequency --> daily, weekly, monthly
+    // tenancy[]
+
 
     enum PeriodType { SECOND, MINUTE, HOUR, DAY, WEEK, MONTH, YEAR, CUSTOM}
 
@@ -67,37 +87,32 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
     event MyData(uint256 A, uint256 B, uint256 C, uint256 D, uint256 E);
 
 
-/// Lease, stored in metadata
-//Lessee
-//Start Date
-//End Date
-//Term
-//Full Lease Link
-//Process of approval
-//Owner creates agreement
-//Paper (?)
-//Blockchain
-//Prospective tenant onboarded into app
-//Agreement signed
-//Authorized by HOA (?) or Owner
-// Month, Day, Year --> stored on chain
-// payment frequency --> daily, weekly, monthly
-// tenancy[]
+    function getTimeGivenTimestamp(uint256 _timestamp) public returns(uint256 second, uint256 minute, uint256 hour,
+        uint256 day, uint256 month, uint256 year){
+        uint256 year = 1970 + _timestamp / (365 days);
+        uint256 rem = _timestamp % (_timestamp / (365 days));
+        uint256 total_days = rem /365;
+        uint256 second;
+        uint256 minute;
+        uint256 hour;
+        uint256 day;
+        uint256 month;
+        // todo -- complete this
+    }
 
-    // January = 0
     /**
      * @dev Converts a specific month to seconds
-     * @param month 0 - 11 representation of month.
-     * @param year year in which month occurs.
+     * @param month , 0 - 11 representation of month.
+     * @param year , year in which month occurs.
      */
     function getSecondsInGivenMonth(uint256 month, uint256 year) view public returns (uint256)    {
         uint256 duration = 31 days;
-        // if 30
+        // if 30-day month
         if (month == 3 || month == 5 ||  month == 8 || month == 10){
             duration -= 1 days;
         }
+        // if leap year
         else if (month == 1){
-            // if leap year, subtract 2, otherwise subtract 3
             if (year %4 ==0){
                 duration -= 2 days;
             }
@@ -108,18 +123,27 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
         return duration;
     }
 
-
+    /**
+     * @dev Gets estimated timestamp for a future date, assuming seconds, minutes, hours, day = 0
+     * @param month , 0 - 11 representation of month.
+     * @param year , year in which month occurs.
+     */
     function getTimestampEstimate(uint256 month, uint256 year) view public returns (uint256)    {
         return getTimestampEstimate(0, 0, 0, 0, month, year);
     }
 
     /**
      * @dev timestamp estimate based on time 0 at January 1, 1970 (midnight UTC/GMT),
-     * @param month 0 - 11 representation of month.
-     * @param year year in which month occurs.
+     * @param second , 0 - 59
+     * @param minute , 0 - 59
+     * @param hour , 0 - 23
+     * @param day , 0 - 30
+     * @param month , 0 - 11
+     * @param year , > 1970
      */
     function getTimestampEstimate(uint256 second, uint256 minute, uint256 hour, uint256 day, uint256 month, uint256 year) view public returns (uint256)    {
-        require( year > 1969, "invalid year.");
+        require(second < 60 && minute < 60 && hour < 24 && month < 12 && year > 1969, "invalid time");
+        require(day < getSecondsInGivenMonth(month, year) / 86400, "invalid days");
 
         // seconds in incomplete year, excluding completed months
         uint256 timestamp = second + minute*60 + hour * 3600 + day*86400; // todo verify timestamp is correct
@@ -178,37 +202,25 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
         }
         else {
         }
-
-//        require(_periodType!=PeriodType.SECOND, "period type is SECON");
-//        require(_periodType!=PeriodType.MINUTE, "period type is MINUTE");
-//        require(_periodType!=PeriodType.HOUR, "period type is HOUR");
-//        require(_periodType!=PeriodType.DAY, "period type is DAY");
-//        require(_periodType!=PeriodType.WEEK, "period type is WEEK");
-//        require(_periodType!=PeriodType.MONTH, "period type is MONTH");
-//        require(_periodType!=PeriodType.YEAR, "period type is YEAR");
-//        require(_periodType!=PeriodType.CUSTOM, "period type is CUSTOM");
         return duration;
-    }
-
-    // returns time until date is hit based on current timestamp
-    function timeHelper(uint256 day, uint256 month) public returns (uint256){
-
     }
 
 
     // todo -- how to use Chainink?
-    // RNG for: lottery, votes,
-    /// Everyone who pays on time gets entered into the lottery. Lottery funds from DeFi (reinvest)
-    // API for weather for NFT, for ...
+        // RNG for: lottery, votes,
+        /// Everyone who pays on time gets entered into the lottery. Lottery funds from DeFi (reinvest)
+        // API for weather for NFT, for ...
 
 
     // todo --
-    // propertyOwners get a def reward for keeping their funds in
-    //
+        // propertyOwners get a def reward for keeping their funds in
+        //
 
     // todo -- lottery. initiated monthly. Check who is in good standing. Sends reward. Chainlink Random function
     // call monthly --- decentralized or not.
 
+
+    // todo -- getRentDue given renter address
 
     function getRentDue(uint _unitID) public view returns(uint256){
         require(_exists(_unitID), "invalid NFT");
@@ -225,11 +237,15 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
         }
 
         // todo -- if periodType == month, different logic. Will need start date and end date
+        if (leaseInfo.periodType == PeriodType.MONTH) {
+            uint256 periodsPassed = 30 days; // todo --this is innacurate and needs to be changed
+        }
+        else {
+
+        }
         uint256 periodTime = getSecondsGivenPeriodType(leaseInfo.periodType);
         uint256 periodsPassed = (block.timestamp - startDateTimestamp ) / periodTime;// - (block.timestamp - startDateTimestamp ) % periodTime; // whole number of periods passed
         uint256 rentDue = periodsPassed * leaseInfo.paymentPerPeriod; // todo -- potentially add tax contractSettings.tax
-
-//        emit MyData(block.timestamp, startDateTimestamp, periodTime, periodsPassed, uint256(leaseInfo.periodType));
 
         return leaseInfo.totalRentPaid > rentDue ? 0 : rentDue - leaseInfo.totalRentPaid;
     }
@@ -277,17 +293,6 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection {
         return(leaseInfo.startMonth, leaseInfo.startYear, leaseInfo.endMonth, leaseInfo.endYear, leaseInfo.paymentPerPeriod,
         leaseInfo.totalRentPaid, leaseInfo.lessee, leaseInfo.periodType);
     }
-
-//    struct LeaseInfo {
-//        uint8 startMonth; // 0 to 11
-//        uint16 startYear; // 2022, for example
-//        uint8 endMonth; // 0 to 11
-//        uint16 endYear; // 2022, for example
-//        uint40 paymentPerPeriod; // amount of USD owned per period
-//        uint40 totalRentPaid; // total paid during lease
-//        address lessee;
-//        PeriodType periodType;
-//    }
 
 
     /////////////////////////////

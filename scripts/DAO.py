@@ -58,5 +58,5 @@ def main():
     for i in range(5):
         print('.', end='')
         time.sleep(1)
-    print('Finished \n')
+    print(' Finished \n')
     return hoa
