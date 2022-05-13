@@ -119,7 +119,7 @@ contract HOAGOV is ReentrancyGuard, Ownable {
     receive() external payable {
     }
 
-    function vote(uint256 proposalID, uint256 NFTID, uint256 _vote) external {
+    function vote(uint256 proposalID, uint256 NFTID, uint256 _vote) external onlyMember {
         require(proposalID < totalProposals, "no such proposal");
         require(ecosystemNFTs.ownerOf(NFTID)==msg.sender, "not owner of NFT");
         require(proposalToNFTVotes[proposalID][NFTID]==0, "already voted");
@@ -130,8 +130,7 @@ contract HOAGOV is ReentrancyGuard, Ownable {
         proposals[proposalID].totalVotes += 1;
     }
 
-    // todo -- should only be called by certain users
-    function createProposal(string calldata _IPFSHash, uint16 _numberOfOptions, uint40 _votingEndTimestamp) external {
+    function createProposal(string calldata _IPFSHash, uint16 _numberOfOptions, uint40 _votingEndTimestamp) external onlyBoard {
         require(_numberOfOptions > 1 && _numberOfOptions < 257, "invalid number of options");
         Proposal storage myProposal = proposals[totalProposals];
         myProposal.votingEndTimestamp = _votingEndTimestamp;
@@ -163,6 +162,12 @@ contract HOAGOV is ReentrancyGuard, Ownable {
         require(false,'Must be member');
         _;
     }
+
+    modifier onlyBoard() {
+        require(false,'Must be member');
+        _;
+    }
+
 
     modifier onlyLessor() {
         require(false,'Must be lessor');
