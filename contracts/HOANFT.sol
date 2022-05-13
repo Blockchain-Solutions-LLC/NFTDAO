@@ -24,6 +24,9 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection, Relativ
     enum PROFILES  { ADMIN, OWNER, TENANT}
 
     mapping(uint256 => UnitData) private tokenIdToUnitData; // compressed data for NFT
+    mapping(address => uint256[] ) public renterAddressToLeaseIDs;
+    mapping(uint256 => LeaseInfo ) public leaseIDToLease;
+    uint256 public totalLeases;
 
 // Store in metadata
 // Unit Info
@@ -75,7 +78,7 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection, Relativ
     // todo -- is this going to serve as a template for one lease, or will multiple leases fit into this data
     // todo -- if the latter, we need to add minTime and check for pockets that are being invalidated
     struct UnitData {
-        LeaseInfo[] leases;
+        uint256[] leases;
         address borrowerAddress;
         uint40 claimTime;
         uint8 startMonth; // 0 to 11 -- constraits for when leasese can be created
@@ -84,6 +87,7 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection, Relativ
         uint16 endYear; // 2022, for example -- constraits for when leasese can be created
         uint40 minTime; // seconds for minimum time to be created.
         uint40 paymentPerPeriod; // amount of USD owned per period
+        bool filled;
         PeriodType periodType;
     }
 
@@ -225,11 +229,13 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection, Relativ
 
     // todo -- getRentDue given renter address
 
-    function getRentDue(uint _unitID) public view returns(uint256){
-        require(_exists(_unitID), "invalid NFT");
-        UnitData memory unitData =  tokenIdToUnitData[_unitID];
-        require(unitData.leases.length > 0, "No Lease.");
-        LeaseInfo memory leaseInfo =  unitData.leases[0]; // todo -- get correct leaseInfo in stack -- figure out how to store
+    // todo -- must include lease #
+    function getRentDue(uint _leaseID) public view returns(uint256){
+        require(_leaseID < totalLeases, "invalid Lease");
+//        UnitData memory unitData =  tokenIdToUnitData[_unitID];
+//        require(unitData.leases.length > 0, "No Lease.");
+//        LeaseInfo memory leaseInfo =  unitData.leases[0]; // todo -- get correct leaseInfo in stack -- figure out how to store
+        LeaseInfo memory leaseInfo =  leaseIDToLease[_leaseID]; // todo -- get correct leaseInfo in stack -- figure out how to store
 
 //        uint256 startDateTimestamp = getSecondsInGivenMonth(leaseInfo.startMonth, leaseInfo.startYear);
         uint256 startDateTimestamp = getTimestampEstimate(leaseInfo.startMonth, leaseInfo.startYear);
@@ -256,6 +262,32 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection, Relativ
 
         return leaseInfo.totalRentPaid > rentDue ? 0 : rentDue - leaseInfo.totalRentPaid;
     }
+
+    // essentially already implemented
+//    function getMyRentDue(uint256 _leaseID) external returns(uint256) {
+//        // require _unitID _exists
+//        // loop over leases, get amount due
+//        // renterAddressToLeaseIDs()
+//    }
+
+
+    function getMyRentDueEverywhere() external view returns(uint256) {
+        uint256 totalRentDue;
+        for(uint256 i =0; i < renterAddressToLeaseIDs[msg.sender].length;  i++){
+            totalRentDue += getRentDue(renterAddressToLeaseIDs[msg.sender][0]);
+        }
+        return totalRentDue;
+    }
+
+    // todo -- potential to fail if there are large amounts of rentals (large for loop)
+    function getMyLeases() external view returns(uint256[] memory) {
+//        uint256 totalRentDue;
+//        for(uint256 i =0; i< renterAddressToLeaseIDs[msg.sender].length < i++){
+//            totalRentDue += getRentDue(renterAddressToLeaseIDs[msg.sender][0]);
+//        }
+        return renterAddressToLeaseIDs[msg.sender];
+     }
+
 
     struct ContractSettings {
         uint208 mintFee; // probably removed
@@ -293,10 +325,10 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection, Relativ
     }
 
     // todo -- specify lease ?? via selector?
-    function getLeaseInfo(uint256 _unitID) public view returns(uint8 _startMonth, uint16 _startYear, uint8 _endMonth,
+    function getLeaseInfo(uint256 _leaseID) public view returns(uint8 _startMonth, uint16 _startYear, uint8 _endMonth,
         uint16 _endYear, uint40 _paymentPerPeriod, uint40 totalRentPaid, address lessee, PeriodType _periodType) {
-        require(_exists(_unitID), "invalid NFT");
-        LeaseInfo memory leaseInfo =  tokenIdToUnitData[_unitID].leases[0]; // todo get specific lease
+        require(_leaseID < totalLeases, "invalid Lease");
+        LeaseInfo memory leaseInfo =  leaseIDToLease[_leaseID]; // tokenIdToUnitData[_unitID].leases[0]; // todo get specific lease
         return(leaseInfo.startMonth, leaseInfo.startYear, leaseInfo.endMonth, leaseInfo.endYear, leaseInfo.paymentPerPeriod,
         leaseInfo.totalRentPaid, leaseInfo.lessee, leaseInfo.periodType);
     }
@@ -344,6 +376,9 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection, Relativ
 
     function createLeaseTerms(uint256 _unitID, uint8 _startMonth, uint16 _startYear, uint8 _endMonth,
         uint16 _endYear, uint40 _paymentPerPeriod, PeriodType _periodType) external {
+        // todo -- check for existing data (leases) and keep that info
+        // todo -- check that new dates don't interfere with existing leases
+
 
         require(_exists(_unitID), "invalid NFT");
         require(ownerOf(_unitID) == msg.sender || false); // todo, add logic for borrower
@@ -359,9 +394,9 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection, Relativ
     }
 
 
-
+    // todo -- return lease #???
     // allow unit owner to create lease agreement, which will facilitate payments
-    function commitToLease(uint256 _unitID, uint8 _startMonth, uint16 _startYear, uint8 _endMonth, uint16 _endYear
+    function commitToLease(uint256 _unitID //, uint8 _startMonth, uint16 _startYear, uint8 _endMonth, uint16 _endYear
         ) external {
         // require caller to own unit NFT (be careful if we implement renting NFTs of ownership)
         // this data is going to be stored on IPFS
@@ -379,27 +414,30 @@ contract HOANFT is ERC721A, ReentrancyGuard, Ownable, ERC2981Collection, Relativ
         require(_exists(_unitID), "invalid NFT");
         UnitData storage unitData =  tokenIdToUnitData[_unitID];
 
-        // todo -- check to see if timing works out ( within constraits of lease and not blocked by other leases)
-        // start data and end date are within correct places
-        // minimum rate met?
-
+        require(unitData.filled==false, "already filled.");
+        unitData.filled = true;
 
         // if viable, we create a new LeaseInfo and add it to UnitData
         LeaseInfo memory leaseInfo = LeaseInfo({
-            startMonth: _startMonth,
-            startYear: _startYear,
-            endMonth: _endMonth,
-            endYear: _endYear,
-            paymentPerPeriod : unitData.paymentPerPeriod, // todo -- have lessor create this requirement
+            startMonth: unitData.startMonth,
+            startYear: unitData.startYear,
+            endMonth: unitData.endMonth,
+            endYear: unitData.endYear,
+            paymentPerPeriod : unitData.paymentPerPeriod,
             totalRentPaid: 0,
             lessee: msg.sender,
             periodType: unitData.periodType
         });
 
-        // todo -- insert leaseInfo correctly
+        leaseIDToLease[totalLeases] = leaseInfo;
+        // store info in UnitData
+        unitData.leases.push(totalLeases);
 
-        unitData.leases.push(leaseInfo);
+        // store data for user
+        renterAddressToLeaseIDs[msg.sender].push(totalLeases);
 
+        // increment leases
+        totalLeases += 1;
     }
 
 

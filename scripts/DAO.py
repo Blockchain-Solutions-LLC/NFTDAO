@@ -53,7 +53,7 @@ def main():
     # print(f'events: {tx.events}')
 
     # accept lease
-    tx = hoa.commitToLease(unit, start_month, start_year, end_month, end_year)
+    tx = hoa.commitToLease(unit) #, start_month, start_year, end_month, end_year)
 
     # get amount owed
     # use for loop to accellerate one month for 14 months
@@ -70,6 +70,13 @@ def main():
 
     # tx = hoa.getRentDue(unit)
     # print(f'events: {tx.events}\n')
+
+    # hoa.getMyRentDue
+    my_leases = hoa.getMyLeases()
+    print(f'my_leases: {my_leases}')
+
+    my_rent_everywhere = hoa.getMyRentDueEverywhere()
+    print(f'my_rent_everywhere: {my_rent_everywhere}')
 
     for i in range(5):
         print('.', end='')
